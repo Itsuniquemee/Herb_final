@@ -135,6 +135,7 @@ function networkDown() {
   
   clearContainers
   removeUnwantedImages
+  docker network rm herbaltrace-network 2>/dev/null || true
   
   # Remove channel and script artifacts
   rm -rf channel-artifacts/*.block channel-artifacts/*.tx
@@ -160,6 +161,9 @@ function networkDown() {
 
 function networkUp() {
   infoln "Starting HerbalTrace Fabric network..."
+
+  # Remove stale network created outside compose to avoid label mismatch errors.
+  docker network rm herbaltrace-network 2>/dev/null || true
   
   # Create channel-artifacts directory
   mkdir -p channel-artifacts
@@ -175,13 +179,13 @@ function networkUp() {
   
   # Generate genesis block and channel transaction
   infoln "Generating genesis block and channel transaction..."
-  ./scripts/createGenesisBlock.sh
+  ./scripts/createGenesisBlock.sh "${CHANNEL_NAME}"
   
   # Start network
   cd docker
   if [ "$DATABASE" == "couchdb" ]; then
-    infoln "Starting network with CouchDB..."
-    docker-compose -f docker-compose-herbaltrace.yaml -f docker-compose-couch.yaml up -d
+    infoln "Starting network with CouchDB (included in docker-compose-herbaltrace.yaml)..."
+    docker-compose -f docker-compose-herbaltrace.yaml up -d
   else
     docker-compose -f docker-compose-herbaltrace.yaml up -d
   fi
@@ -201,7 +205,7 @@ function networkUp() {
 
 function createChannel() {
   infoln "Creating channel ${CHANNEL_NAME}..."
-  ./scripts/createChannel.sh $CHANNEL_NAME
+  ./scripts/createChannel.sh "${CHANNEL_NAME}"
   
   if [ $? -ne 0 ]; then
     errorln "Failed to create channel"

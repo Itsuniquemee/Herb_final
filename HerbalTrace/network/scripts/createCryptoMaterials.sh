@@ -3,7 +3,18 @@
 set -e
 
 CRYPTO_CONFIG_DIR="../organizations"
+CRYPTOGEN_IMAGE="hyperledger/fabric-tools:2.5"
 mkdir -p ${CRYPTO_CONFIG_DIR}
+
+run_cryptogen() {
+  if command -v cryptogen >/dev/null 2>&1; then
+    cryptogen "$@"
+    return
+  fi
+
+  echo "cryptogen binary not found locally. Using ${CRYPTOGEN_IMAGE} container..."
+  docker run --rm -v "${PWD}:${PWD}" -w "${PWD}" "${CRYPTOGEN_IMAGE}" cryptogen "$@"
+}
 
 # Generate crypto materials using cryptogen
 echo "Generating crypto materials with cryptogen..."
@@ -53,7 +64,16 @@ PeerOrgs:
       Count: 2
 EOF
 
-cryptogen generate --config=./crypto-config.yaml --output="${CRYPTO_CONFIG_DIR}"
+run_cryptogen generate --config=./crypto-config.yaml --output="${CRYPTO_CONFIG_DIR}"
+
+# Keep MSP tlscacerts aligned with node TLS CA files used at runtime.
+cp ${CRYPTO_CONFIG_DIR}/ordererOrganizations/herbaltrace.com/orderers/orderer.herbaltrace.com/tls/ca.crt \
+  ${CRYPTO_CONFIG_DIR}/ordererOrganizations/herbaltrace.com/msp/tlscacerts/tlsca.herbaltrace.com-cert.pem
+
+for org in farmers labs processors manufacturers; do
+  cp ${CRYPTO_CONFIG_DIR}/peerOrganizations/${org}.herbaltrace.com/peers/peer0.${org}.herbaltrace.com/tls/ca.crt \
+    ${CRYPTO_CONFIG_DIR}/peerOrganizations/${org}.herbaltrace.com/msp/tlscacerts/tlsca.${org}.herbaltrace.com-cert.pem
+done
 
 # Rename directories to match expected structure
 mv ${CRYPTO_CONFIG_DIR}/ordererOrganizations ${CRYPTO_CONFIG_DIR}/ordererOrganizations-temp 2>/dev/null || true

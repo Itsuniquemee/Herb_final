@@ -3,7 +3,7 @@
 
 set -e
 
-CHANNEL_NAME="herbaltrace-channel"
+CHANNEL_NAME=${1:-"herbaltrace-channel"}
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 NETWORK_DIR="$(dirname "$SCRIPT_DIR")"
 
@@ -28,7 +28,7 @@ docker exec cli osnadmin channel join \
   -o orderer.herbaltrace.com:7053 \
   --ca-file /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/herbaltrace.com/orderers/orderer.herbaltrace.com/msp/tlscacerts/tlsca.herbaltrace.com-cert.pem \
   --client-cert /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/herbaltrace.com/orderers/orderer.herbaltrace.com/tls/server.crt \
-  --client-key /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/herbaltrace.com/orderers/orderer.herbaltrace.com/tls/server.key
+  --client-key /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/herbaltrace.com/orderers/orderer.herbaltrace.com/tls/server.key || true
 
 # Join orderer2
 docker exec cli osnadmin channel join \
@@ -37,7 +37,7 @@ docker exec cli osnadmin channel join \
   -o orderer2.herbaltrace.com:8053 \
   --ca-file /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/herbaltrace.com/orderers/orderer2.herbaltrace.com/msp/tlscacerts/tlsca.herbaltrace.com-cert.pem \
   --client-cert /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/herbaltrace.com/orderers/orderer2.herbaltrace.com/tls/server.crt \
-  --client-key /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/herbaltrace.com/orderers/orderer2.herbaltrace.com/tls/server.key
+  --client-key /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/herbaltrace.com/orderers/orderer2.herbaltrace.com/tls/server.key || true
 
 # Join orderer3
 docker exec cli osnadmin channel join \
@@ -46,18 +46,26 @@ docker exec cli osnadmin channel join \
   -o orderer3.herbaltrace.com:9053 \
   --ca-file /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/herbaltrace.com/orderers/orderer3.herbaltrace.com/msp/tlscacerts/tlsca.herbaltrace.com-cert.pem \
   --client-cert /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/herbaltrace.com/orderers/orderer3.herbaltrace.com/tls/server.crt \
-  --client-key /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/herbaltrace.com/orderers/orderer3.herbaltrace.com/tls/server.key
+  --client-key /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/herbaltrace.com/orderers/orderer3.herbaltrace.com/tls/server.key || true
 
 echo "Channel joined on all orderers!"
 echo "Now joining peers..."
 
 # Join FarmersCoop peers
 echo "Joining FarmersCoop peers..."
-docker exec -e CORE_PEER_LOCALMSPID=FarmersCoopMSP \
-  -e CORE_PEER_ADDRESS=peer0.farmers.herbaltrace.com:7051 \
-  -e CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/peerOrganizations/farmers.herbaltrace.com/peers/peer0.farmers.herbaltrace.com/tls/ca.crt \
-  -e CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/peerOrganizations/farmers.herbaltrace.com/users/Admin@farmers.herbaltrace.com/msp \
-  cli peer channel fetch 0 ./channel-artifacts/${CHANNEL_NAME}.block -o orderer.herbaltrace.com:7050 -c ${CHANNEL_NAME} --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/herbaltrace.com/orderers/orderer.herbaltrace.com/msp/tlscacerts/tlsca.herbaltrace.com-cert.pem
+
+# Wait until the orderer cluster is ready to serve channel fetch.
+for i in {1..12}; do
+  if docker exec -e CORE_PEER_LOCALMSPID=FarmersCoopMSP \
+    -e CORE_PEER_ADDRESS=peer0.farmers.herbaltrace.com:7051 \
+    -e CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/peerOrganizations/farmers.herbaltrace.com/peers/peer0.farmers.herbaltrace.com/tls/ca.crt \
+    -e CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/peerOrganizations/farmers.herbaltrace.com/users/Admin@farmers.herbaltrace.com/msp \
+    cli peer channel fetch 0 ./channel-artifacts/${CHANNEL_NAME}.block -o orderer.herbaltrace.com:7050 -c ${CHANNEL_NAME} --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/herbaltrace.com/orderers/orderer.herbaltrace.com/msp/tlscacerts/tlsca.herbaltrace.com-cert.pem; then
+    break
+  fi
+  echo "Orderer not ready yet for channel fetch (attempt ${i}/12), retrying..."
+  sleep 3
+done
 
 docker exec -e CORE_PEER_LOCALMSPID=FarmersCoopMSP \
   -e CORE_PEER_ADDRESS=peer0.farmers.herbaltrace.com:7051 \
