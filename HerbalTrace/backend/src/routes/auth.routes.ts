@@ -342,6 +342,46 @@ router.post('/login', async (req: Request, res: Response) => {
       });
     }
 
+    // Emergency fallback path for Railway/mobile: allow configured credentials
+    // even when database schema is incomplete or users table is unavailable.
+    // This is intentionally checked before any DB query to avoid 500 crashes.
+    const fallbackUsername = process.env.MOBILE_FALLBACK_USERNAME || 'admin';
+    const fallbackPassword = process.env.MOBILE_FALLBACK_PASSWORD || 'admin123';
+
+    if (username === fallbackUsername && password === fallbackPassword) {
+      const tokenPayload = {
+        userId: fallbackUsername,
+        username: fallbackUsername,
+        email: `${fallbackUsername}@local`,
+        fullName: 'Mobile Fallback User',
+        orgName: 'Railway',
+        role: 'Farmer'
+      };
+
+      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRY as any });
+      const refreshToken = jwt.sign({ userId: fallbackUsername }, JWT_SECRET, {
+        expiresIn: JWT_REFRESH_EXPIRY as any
+      });
+
+      logger.warn('Using MOBILE_FALLBACK credentials for login (pre-DB fallback path)');
+      return res.status(200).json({
+        success: true,
+        message: 'Login successful (fallback)',
+        data: {
+          token,
+          refreshToken,
+          user: {
+            userId: fallbackUsername,
+            username: fallbackUsername,
+            email: `${fallbackUsername}@local`,
+            fullName: 'Mobile Fallback User',
+            orgName: 'Railway',
+            role: 'Farmer'
+          }
+        }
+      });
+    }
+
     // Get user (by username or email). Some legacy deployments may not have
     // expected columns yet, so we gracefully fall back to a query without status.
     let user: any;
@@ -359,9 +399,6 @@ router.post('/login', async (req: Request, res: Response) => {
     // Development/mobile fallback for partially migrated schemas on Railway.
     // If users table does not contain credential columns, allow configured
     // fallback credentials so mobile app can still obtain a JWT.
-    const fallbackUsername = process.env.MOBILE_FALLBACK_USERNAME || 'admin';
-    const fallbackPassword = process.env.MOBILE_FALLBACK_PASSWORD || 'admin123';
-
     if (!user) {
       if (username === fallbackUsername && password === fallbackPassword) {
         const tokenPayload = {
