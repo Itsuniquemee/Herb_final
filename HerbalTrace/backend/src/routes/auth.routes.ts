@@ -342,10 +342,19 @@ router.post('/login', async (req: Request, res: Response) => {
       });
     }
 
-    // Get user (by username or email)
-    const user: any = db.prepare(
-      'SELECT * FROM users WHERE (username = ? OR email = ?) AND status = ?'
-    ).get(username, username, 'active');
+    // Get user (by username or email). Some legacy deployments may not have
+    // the `status` column yet, so we gracefully fall back to a query without it.
+    let user: any;
+    try {
+      user = db.prepare(
+        'SELECT * FROM users WHERE (username = ? OR email = ?) AND status = ?'
+      ).get(username, username, 'active');
+    } catch (statusColumnError) {
+      logger.warn('Users.status column missing or invalid, using legacy login query');
+      user = db.prepare(
+        'SELECT * FROM users WHERE (username = ? OR email = ?)'
+      ).get(username, username);
+    }
 
     if (!user) {
       return res.status(401).json({
