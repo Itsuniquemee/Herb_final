@@ -221,6 +221,30 @@ export const initializeDatabase = (): void => {
       CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status);
     `);
 
+    // Complaints table (mobile app support)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS complaints (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        user_name TEXT,
+        user_email TEXT,
+        complaint_type TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        description TEXT NOT NULL,
+        status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'in_review', 'resolved', 'rejected')),
+        admin_notes TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now')),
+        resolved_at TEXT,
+        resolved_by TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_complaints_user ON complaints(user_id);
+      CREATE INDEX IF NOT EXISTS idx_complaints_status ON complaints(status);
+      CREATE INDEX IF NOT EXISTS idx_complaints_created_at ON complaints(created_at);
+    `);
+
     // Recall records table
     db.exec(`
       CREATE TABLE IF NOT EXISTS recall_records (
@@ -467,6 +491,8 @@ export const initializeDatabase = (): void => {
       CREATE INDEX IF NOT EXISTS idx_batches_status ON batches(status);
       CREATE INDEX IF NOT EXISTS idx_alerts_type ON alerts(alert_type);
       CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status);
+      CREATE INDEX IF NOT EXISTS idx_complaints_user ON complaints(user_id);
+      CREATE INDEX IF NOT EXISTS idx_complaints_status ON complaints(status);
       CREATE INDEX IF NOT EXISTS idx_qc_tests_batch ON qc_tests(batch_id);
       CREATE INDEX IF NOT EXISTS idx_qc_tests_lab ON qc_tests(lab_id);
       CREATE INDEX IF NOT EXISTS idx_qc_tests_status ON qc_tests(status);
