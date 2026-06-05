@@ -1,5 +1,5 @@
 # HerbalTrace - Complete System Startup Script
-# This script starts all services needed for final testing
+# Starts blockchain, backend API, and web portal for local end-to-end testing.
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  HerbalTrace System Startup" -ForegroundColor Cyan
